@@ -1,0 +1,132 @@
+---
+title: "DATA 607 Project 1"
+author: "Albert Gilharry"
+date: "February 22, 2018"
+output:
+  pdf_document:
+    toc: yes
+  html_document:
+    css: ./css.css
+    highlight: pygments
+    pdf_document: default
+    theme: spacelab
+    toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Libraries
+
+```{r load-libraries}
+library("stringr")
+```
+## Load Input File
+```{r load-data}
+lines <- scan("data/tournamentinfo.txt", sep="\n", what="raw")
+# preview data
+print(lines[1:15])
+```
+
+## Initialize Data Structure
+
+<div id = "solution">
+I decided to use use a data frame to store the data and leverage its capabilities to do subsetting, calculations, and generate a CSV.
+</div>
+
+```{r inititalize-data-structure}
+  tournament = data.frame(Player = integer(), 
+                             Name = character(), 
+                             State = character(), 
+                             Points = double(), 
+                             Pre_Rtg = integer(),
+                             Opp_Rtg = double(),
+                             Games = integer(),
+                             Opponents = character(),
+                             stringsAsFactors = FALSE)
+```
+
+## Processing
+
+<div id = "solution">
+This is the meat of the work. Extensive use of R's chaining and nesting capabilities were done to produce a single statement to produce most variables. I created a function to "camel case" the players' names as per the project requirements.
+</div>
+
+```{r process-file}
+
+# created function to convert names to camel case format
+# preventing the need to loop through the segments of the name
+camelCase = function(s){
+  # converts the first letter of each word to upper case and the other characters to lower case
+  return(str_c(toupper(str_sub(s,1,1)),tolower(str_sub(s,2,str_count(s))))) 
+}
+
+i <- 5 #start at the 5th line
+while (i <= length( lines ) ){
+   playerInfoRow1 <- str_trim(str_split(str_trim(lines[i]),"\\|")[[1]])
+   playerInfoRow2 <- str_trim(str_split(str_trim(lines[i + 1]),"\\|")[[1]])
+   playerNumber <- playerInfoRow1[1]
+   playerName <- paste(unlist(camelCase(str_split(playerInfoRow1[2],"\\s")[[1]])), collapse = " ")
+   playerState <- playerInfoRow2[1]
+   points <- playerInfoRow1[3]
+   playerRatings= str_trim(str_split(str_split(playerInfoRow2[2] ,":")[[1]][2],"->")[[1]])
+   playerPreRating <- str_split(playerRatings[1],"P")[[1]][1]
+   opponents= str_extract_all(str_sub(lines[i],-43),"[0-9]+")[[1]] #used as reference calc. average
+   gamesPlayed = length(opponents)
+   opponents=paste(unlist(opponents),collapse = "|")
+   tournament[nrow(tournament) + 1,] = list(playerNumber, 
+                                            playerName, 
+                                            playerState,
+                                            points, 
+                                            playerPreRating, 
+                                            0.0,
+                                            gamesPlayed,
+                                            opponents)
+   
+   # increment in blocks of 3 to prevent unnecessary processing of dashes
+   i <- i + 3
+}
+```
+## Preview Processed Data
+<div id = "solution">
+  We now all the necessary information to perform necessary calculations and analysis.
+</div>
+
+```{r preview-processed-data}
+  print(subset(tournament, select = c("Name","State","Points","Pre_Rtg","Opponents")))
+```
+
+## Calculate Opponents Pre Chess Rating by Subsetting
+
+<div id = "solution">
+This was done by referencing the players opponents by creating a list and using the *%in%* operator as input to the mean function.
+</div>
+
+```{r opponents-pre-averages}
+i <- 1
+while(i <= nrow(tournament)){
+  oppMean <- mean(as.integer(subset(tournament, 
+                                   Player %in% as.integer(str_split(tournament$Opponents[i],
+                                                                            "\\|")[[1]]),select=c("Pre_Rtg"))$Pre_Rtg))
+  tournament$Opp_Rtg[i] <- oppMean
+  i <- i + 1
+}
+```
+
+## View Opponents Pre Chess Rating
+
+```{r preview-averages}
+  print(subset(tournament, select = c("Name","State","Points","Pre_Rtg","Opp_Rtg")))
+```
+
+## Write CSV File
+
+<div id = "solution">
+ Only the necessary variables are written to the CSV file.
+</div>
+
+```{r write-file}
+write.csv(subset(tournament, select = c("Name","State","Points","Pre_Rtg","Opp_Rtg")), 
+          file = "tournament.csv", quote = FALSE, row.names = FALSE)
+```
